@@ -141,7 +141,7 @@ class PatchAutoEncoder(torch.nn.Module, PatchAutoEncoderBase):
             x = chw_to_hwc(self.net(hwc_to_chw(x)))
             return self.unpatchify(x)
 
-    def __init__(self, patch_size: int = 25, latent_dim: int = 128, bottleneck: int = 128):
+    def __init__(self, patch_size: int = 10, latent_dim: int = 128, bottleneck: int = 128):
         super().__init__()
         self.encoder = self.PatchEncoder(patch_size, latent_dim, bottleneck)
         self.decoder = self.PatchDecoder(patch_size, latent_dim, bottleneck)
