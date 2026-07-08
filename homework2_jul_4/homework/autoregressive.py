@@ -55,10 +55,35 @@ class AutoregressiveModel(torch.nn.Module, Autoregressive):
 
     def __init__(self, d_latent: int = 128, n_tokens: int = 2**10):
         super().__init__()
-        raise NotImplementedError()
+        self.n_tokens = n_tokens
+        self.token_embedding = torch.nn.Embedding(n_tokens, d_latent)
+        self.pos_embedding = torch.nn.Embedding(1024, d_latent)
+        self.start_token = torch.nn.Parameter(torch.zeros(1, 1, d_latent))
+        layer = torch.nn.TransformerEncoderLayer(
+            d_model=d_latent, nhead=8, dim_feedforward=4 * d_latent, batch_first=True
+        )
+        self.transformer = torch.nn.TransformerEncoder(layer, num_layers=4)
+        self.output = torch.nn.Linear(d_latent, n_tokens)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        raise NotImplementedError()
+        B, h, w = x.shape
+        seq_len = h * w
+        emb = self.token_embedding(x.view(B, seq_len))
+        # shift right by one so position i only sees tokens before it
+        emb = torch.cat([self.start_token.expand(B, 1, -1), emb[:, :-1]], dim=1)
+        positions = torch.arange(seq_len, device=x.device)
+        emb = emb + self.pos_embedding(positions)
+        mask = torch.nn.Transformer.generate_square_subsequent_mask(seq_len, device=x.device)
+        out = self.transformer(emb, mask=mask)
+        logits = self.output(out)
+        return logits.view(B, h, w, self.n_tokens), {}
 
     def generate(self, B: int = 1, h: int = 30, w: int = 20, device=None) -> torch.Tensor:  # noqa
-        raise NotImplementedError()
+        tokens = torch.zeros(B, h, w, dtype=torch.long, device=device)
+        flat = tokens.view(B, h * w)
+        with torch.no_grad():
+            for i in range(h * w):
+                logits, _ = self.forward(tokens)
+                probs = torch.softmax(logits.view(B, h * w, -1)[:, i], dim=-1)
+                flat[:, i] = torch.multinomial(probs, 1).squeeze(-1)
+        return tokens
