@@ -137,7 +137,7 @@ class PatchAutoEncoder(torch.nn.Module, PatchAutoEncoderBase):
             x = x + self.conv2(torch.nn.functional.gelu(self.conv1(x)))
             return self.unpatchify(chw_to_hwc(x))
 
-    def __init__(self, patch_size: int = 10, latent_dim: int = 128, bottleneck: int = 128):
+    def __init__(self, patch_size: int = 5, latent_dim: int = 128, bottleneck: int = 128):
         super().__init__()
         self.encoder = self.PatchEncoder(patch_size, latent_dim, bottleneck)
         self.decoder = self.PatchDecoder(patch_size, latent_dim, bottleneck)
