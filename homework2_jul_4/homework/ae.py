@@ -115,31 +115,27 @@ class PatchAutoEncoder(torch.nn.Module, PatchAutoEncoderBase):
         def __init__(self, patch_size: int, latent_dim: int, bottleneck: int):
             super().__init__()
             self.patchify = PatchifyLinear(patch_size, latent_dim)
-            self.net = torch.nn.Sequential(
-                torch.nn.GELU(),
-                torch.nn.Conv2d(latent_dim, latent_dim, 3, padding=1),
-                torch.nn.GELU(),
-                torch.nn.Conv2d(latent_dim, bottleneck, 3, padding=1),
-            )
+            self.conv1 = torch.nn.Conv2d(latent_dim, latent_dim, 3, padding=1)
+            self.conv2 = torch.nn.Conv2d(latent_dim, latent_dim, 3, padding=1)
+            self.proj = torch.nn.Conv2d(latent_dim, bottleneck, 1)
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
-            x = self.patchify(x)
-            return chw_to_hwc(self.net(hwc_to_chw(x)))
+            x = hwc_to_chw(self.patchify(x))
+            x = x + self.conv2(torch.nn.functional.gelu(self.conv1(x)))
+            return chw_to_hwc(self.proj(x))
 
     class PatchDecoder(torch.nn.Module):
         def __init__(self, patch_size: int, latent_dim: int, bottleneck: int):
             super().__init__()
-            self.net = torch.nn.Sequential(
-                torch.nn.Conv2d(bottleneck, latent_dim, 3, padding=1),
-                torch.nn.GELU(),
-                torch.nn.Conv2d(latent_dim, latent_dim, 3, padding=1),
-                torch.nn.GELU(),
-            )
+            self.proj = torch.nn.Conv2d(bottleneck, latent_dim, 1)
+            self.conv1 = torch.nn.Conv2d(latent_dim, latent_dim, 3, padding=1)
+            self.conv2 = torch.nn.Conv2d(latent_dim, latent_dim, 3, padding=1)
             self.unpatchify = UnpatchifyLinear(patch_size, latent_dim)
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
-            x = chw_to_hwc(self.net(hwc_to_chw(x)))
-            return self.unpatchify(x)
+            x = self.proj(hwc_to_chw(x))
+            x = x + self.conv2(torch.nn.functional.gelu(self.conv1(x)))
+            return self.unpatchify(chw_to_hwc(x))
 
     def __init__(self, patch_size: int = 10, latent_dim: int = 128, bottleneck: int = 128):
         super().__init__()
